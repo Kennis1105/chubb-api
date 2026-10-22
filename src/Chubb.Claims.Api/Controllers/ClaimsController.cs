@@ -1,6 +1,6 @@
-using Chubb.Claims.Api.Contracts;
+using Chubb.Claims.Api.Contracts.Requests;
 using Chubb.Claims.Application.Common.Dispatcher;
-using Chubb.Claims.Application.DTOs;
+using Chubb.Claims.Application.Contracts.Responses;
 using Chubb.Claims.Application.Features.Claims.Commands;
 using Chubb.Claims.Application.Features.Claims.Queries;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +13,7 @@ namespace Chubb.Claims.Api.Controllers;
 public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<ClaimSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IReadOnlyList<ClaimSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetClaims(
         [FromQuery] string? market,
         [FromQuery] string? claimType,
@@ -29,7 +29,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetClaimById(Guid id, CancellationToken ct)
     {
@@ -41,7 +41,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPost]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SubmitClaim([FromBody] SubmitClaimRequest req, CancellationToken ct)
     {
@@ -65,7 +65,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPost("{id:guid}/pickup")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> PickUpClaim(Guid id, [FromBody] PickUpClaimRequest? req, CancellationToken ct)
     {
@@ -80,7 +80,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPut("{id:guid}/assessment")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateAssessment(Guid id, [FromBody] UpdateAssessmentRequest req, CancellationToken ct)
     {
@@ -97,7 +97,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPost("{id:guid}/request-info")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RequestInfo(Guid id, [FromBody] RequestInfoRequest req, CancellationToken ct)
     {
@@ -113,7 +113,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPost("{id:guid}/respond-info")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RespondInfo(Guid id, [FromBody] RespondInfoRequest req, CancellationToken ct)
     {
@@ -130,7 +130,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPost("{id:guid}/settle")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SettleClaim(Guid id, [FromBody] SettleClaimRequest req, CancellationToken ct)
     {
@@ -147,7 +147,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     }
 
     [HttpPost("{id:guid}/reject")]
-    [ProducesResponseType(typeof(ClaimDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RejectClaim(Guid id, [FromBody] RejectClaimRequest req, CancellationToken ct)
     {

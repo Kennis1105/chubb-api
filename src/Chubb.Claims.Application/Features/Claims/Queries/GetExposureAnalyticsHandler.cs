@@ -1,94 +1,14 @@
 using Chubb.Claims.Application.Common.Dispatcher;
 using Chubb.Claims.Application.Common.Interfaces;
-using Chubb.Claims.Application.DTOs;
+using Chubb.Claims.Application.Contracts.Responses;
 using Chubb.Claims.Domain.Enums;
 
 namespace Chubb.Claims.Application.Features.Claims.Queries;
 
-// 1. Get Claims List with multi-dimensional filtering
-public sealed record GetClaimsListQuery(
-    string? Market = null,
-    string? ClaimType = null,
-    string? Status = null,
-    string? ClaimantId = null,
-    string? AssignedOfficerId = null,
-    string? Search = null) : IQuery<IReadOnlyList<ClaimSummaryDto>>;
-
-public sealed class GetClaimsListHandler(IClaimsRepository repository, IFxRateService fxRateService)
-    : IQueryHandler<GetClaimsListQuery, IReadOnlyList<ClaimSummaryDto>>
-{
-    public async Task<IReadOnlyList<ClaimSummaryDto>> HandleAsync(GetClaimsListQuery query, CancellationToken cancellationToken = default)
-    {
-        var allClaims = await repository.GetAllWithDetailsAsync(cancellationToken);
-        var filtered = allClaims.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(query.Market) && Enum.TryParse<MarketCode>(query.Market, true, out var market))
-            filtered = filtered.Where(c => c.Market == market);
-
-        if (!string.IsNullOrWhiteSpace(query.ClaimType) && Enum.TryParse<ClaimType>(query.ClaimType, true, out var claimType))
-            filtered = filtered.Where(c => c.ClaimType == claimType);
-
-        if (!string.IsNullOrWhiteSpace(query.Status))
-        {
-            if (query.Status.Equals("Open", StringComparison.OrdinalIgnoreCase))
-            {
-                filtered = filtered.Where(c => c.Status is ClaimStatus.Submitted or ClaimStatus.UnderReview or ClaimStatus.InfoRequested);
-            }
-            else if (Enum.TryParse<ClaimStatus>(query.Status, true, out var status))
-            {
-                filtered = filtered.Where(c => c.Status == status);
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.ClaimantId))
-            filtered = filtered.Where(c => c.ClaimantId.Equals(query.ClaimantId, StringComparison.OrdinalIgnoreCase));
-
-        if (!string.IsNullOrWhiteSpace(query.AssignedOfficerId))
-        {
-            if (query.AssignedOfficerId.Equals("UNASSIGNED", StringComparison.OrdinalIgnoreCase))
-                filtered = filtered.Where(c => string.IsNullOrEmpty(c.AssignedOfficerId));
-            else
-                filtered = filtered.Where(c => string.Equals(c.AssignedOfficerId, query.AssignedOfficerId, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var term = query.Search.Trim();
-            filtered = filtered.Where(c =>
-                c.ClaimNumber.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                c.PolicyNumber.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                c.ClaimantName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                c.IncidentLocation.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                c.AssetIdentifier.Contains(term, StringComparison.OrdinalIgnoreCase));
-        }
-
-        return filtered
-            .OrderByDescending(c => c.UpdatedAtUtc)
-            .Select(c => ClaimMapper.ToSummaryDto(c, fxRateService))
-            .ToList();
-    }
-}
-
-// 2. Get Claim Detail By ID (Masks internal officer notes when queried by a Claimant!)
-public sealed record GetClaimByIdQuery(Guid ClaimId, bool IsStaffRole) : IQuery<ClaimDetailDto>;
-
-public sealed class GetClaimByIdHandler(IClaimsRepository repository, IFxRateService fxRateService)
-    : IQueryHandler<GetClaimByIdQuery, ClaimDetailDto>
-{
-    public async Task<ClaimDetailDto> HandleAsync(GetClaimByIdQuery query, CancellationToken cancellationToken = default)
-    {
-        var claim = await repository.GetByIdAsync(query.ClaimId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Claim '{query.ClaimId}' not found.");
-
-        return ClaimMapper.ToDetailDto(claim, fxRateService, includeInternalNotes: query.IsStaffRole);
-    }
-}
-
-// 3. Get Real-Time APAC Liability Exposure & Team Workload Analytics
-public sealed record GetExposureAnalyticsQuery() : IQuery<ExposureAnalyticsDto>;
+public sealed record GetExposureAnalyticsQuery() : IQuery<ExposureAnalyticsResponse>;
 
 public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IFxRateService fxRateService)
-    : IQueryHandler<GetExposureAnalyticsQuery, ExposureAnalyticsDto>
+    : IQueryHandler<GetExposureAnalyticsQuery, ExposureAnalyticsResponse>
 {
     private static readonly (string OfficerId, string OfficerName, string PrimaryMarkets)[] KnownOfficers =
     [
@@ -97,7 +17,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
         ("off-narong", "Narong Srisai", "TH, ID")
     ];
 
-    public async Task<ExposureAnalyticsDto> HandleAsync(GetExposureAnalyticsQuery query, CancellationToken cancellationToken = default)
+    public async Task<ExposureAnalyticsResponse> HandleAsync(GetExposureAnalyticsQuery query, CancellationToken cancellationToken = default)
     {
         var claims = await repository.GetAllWithDetailsAsync(cancellationToken);
         var outboxMessages = await repository.GetRecentOutboxMessagesAsync(25, cancellationToken);
@@ -117,7 +37,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
                 var activeNative = marketClaims.Sum(c => c.ActiveReserveExposure);
                 var settledNative = marketClaims.Sum(c => c.RealizedPayout);
 
-                return new MarketExposureBreakdownDto(
+                return new MarketExposureBreakdownResponse(
                     market.ToString(),
                     MarketMetadata.GetCountryName(market),
                     currency,
@@ -136,7 +56,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
             .Select(type =>
             {
                 var typeClaims = claims.Where(c => c.ClaimType == type).ToList();
-                return new ClaimTypeBreakdownDto(
+                return new ClaimTypeBreakdownResponse(
                     type.ToString(),
                     typeClaims.Count(c => c.Status is ClaimStatus.Submitted or ClaimStatus.UnderReview or ClaimStatus.InfoRequested),
                     typeClaims.Count,
@@ -153,7 +73,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
                 ? Math.Round(closed.Average(c => (c.ClosedAtUtc!.Value - c.SubmittedAtUtc).TotalHours), 1)
                 : 18.5;
 
-            return new OfficerWorkloadDto(
+            return new OfficerWorkloadResponse(
                 officer.OfficerId,
                 officer.OfficerName,
                 officer.PrimaryMarkets,
@@ -165,7 +85,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
                 avgHours);
         }).ToList();
 
-        var eventStream = outboxMessages.Select(m => new EventStreamItemDto(
+        var eventStream = outboxMessages.Select(m => new EventStreamItemResponse(
             m.Id,
             m.AggregateId,
             m.EventType,
@@ -175,7 +95,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
             m.ProcessedAtUtc,
             m.PayloadJson)).ToList();
 
-        return new ExposureAnalyticsDto(
+        return new ExposureAnalyticsResponse(
             totalActiveUsd,
             totalSettledUsd,
             totalReleasedUsd,

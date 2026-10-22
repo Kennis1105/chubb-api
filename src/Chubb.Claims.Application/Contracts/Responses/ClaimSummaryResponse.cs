@@ -1,0 +1,26 @@
+namespace Chubb.Claims.Application.Contracts.Responses;
+
+public sealed record ClaimSummaryResponse(
+    Guid Id,
+    string ClaimNumber,
+    string PolicyNumber,
+    string Market,
+    string CountryName,
+    string ClaimType,
+    string Status,
+    string ClaimantId,
+    string ClaimantName,
+    DateTime IncidentDateUtc,
+    string IncidentLocation,
+    string AssetIdentifier,
+    string Currency,
+    decimal EstimatedLoss,
+    decimal? AssessedReserve,
+    decimal? SettledAmount,
+    decimal ActiveReserveExposure,
+    decimal ActiveReserveExposureUsd,
+    string? AssignedOfficerId,
+    string? AssignedOfficerName,
+    bool HasOpenInfoRequest,
+    DateTime SubmittedAtUtc,
+    DateTime UpdatedAtUtc);
