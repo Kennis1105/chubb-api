@@ -1,6 +1,6 @@
-using Chubb.Claims.Api.Contracts.Responses;
-using Chubb.Claims.Application.Common.Interfaces;
-using Chubb.Claims.Domain.Enums;
+using Chubb.Claims.Application.Common.Dispatcher;
+using Chubb.Claims.Application.Contracts.Requests;
+using Chubb.Claims.Application.Contracts.Responses;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Chubb.Claims.Api.Controllers;
@@ -8,39 +8,13 @@ namespace Chubb.Claims.Api.Controllers;
 [ApiController]
 [Route("api/metadata")]
 [Produces("application/json")]
-public sealed class MetadataController(IFxRateService fxService) : ControllerBase
+public sealed class MetadataController(IDispatcher dispatcher) : ControllerBase
 {
     [HttpGet("bootstrap")]
     [ProducesResponseType(typeof(BootstrapMetadataResponse), StatusCodes.Status200OK)]
-    public IActionResult GetBootstrapMetadata()
+    public async Task<IActionResult> GetBootstrapMetadata(CancellationToken ct)
     {
-        var markets = Enum.GetValues<MarketCode>().Select(m =>
-        {
-            var currency = MarketMetadata.GetCurrency(m);
-            return new MarketMetadataResponse(
-                m.ToString(),
-                MarketMetadata.GetCountryName(m),
-                currency,
-                fxService.GetUsdRate(currency));
-        }).ToList();
-
-        var personas = new List<PersonaMetadataResponse>
-        {
-            new("clm-tan", "Tan Wei Ming", "Claimant", "SG", "Policyholder (Singapore - Motor & Property)", "weiming.tan@example.sg", "+65 9123 4567"),
-            new("clm-chloe", "Chloe Chan", "Claimant", "HK", "Policyholder (Hong Kong - Commercial Property)", "chloe.chan@example.hk", "+852 9388 1120"),
-            new("clm-liam", "Liam O'Connor", "Claimant", "AU", "Policyholder (Australia - Motor & Property)", "liam.oconnor@example.com.au", "+61 412 889 301"),
-            new("off-sarah", "Sarah Jenkins", "ClaimsOfficer", "SG, HK", "Senior Claims Adjuster (SG & HK)", "sarah.jenkins@chubb.com", "+65 6333 8800"),
-            new("off-raj", "Rajesh Patel", "ClaimsOfficer", "AU, MY", "Claims Specialist (AU & MY)", "rajesh.patel@chubb.com", "+61 2 9273 0100"),
-            new("off-narong", "Narong Srisai", "ClaimsOfficer", "TH, ID", "Regional Claims Officer (TH & ID)", "narong.srisai@chubb.com", "+66 2 611 4000"),
-            new("mgr-victoria", "Victoria Lim", "ClaimsManager", "APAC (All 6 Markets)", "VP, APAC Claims Operations & Exposure", "victoria.lim@chubb.com", "+65 6333 8000")
-        };
-
-        var response = new BootstrapMetadataResponse(
-            markets,
-            Enum.GetNames<ClaimType>(),
-            Enum.GetNames<ClaimStatus>(),
-            personas);
-
-        return Ok(response);
+        var result = await dispatcher.QueryAsync(new GetBootstrapMetadataRequest(), ct);
+        return Ok(result);
     }
 }

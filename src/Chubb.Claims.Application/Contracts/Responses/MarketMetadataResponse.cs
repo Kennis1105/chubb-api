@@ -1,4 +1,4 @@
-namespace Chubb.Claims.Api.Contracts.Responses;
+namespace Chubb.Claims.Application.Contracts.Responses;
 
 public sealed record MarketMetadataResponse(
     string Code,

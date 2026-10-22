@@ -1,14 +1,13 @@
 using Chubb.Claims.Application.Common.Dispatcher;
 using Chubb.Claims.Application.Common.Interfaces;
+using Chubb.Claims.Application.Contracts.Requests;
 using Chubb.Claims.Application.Contracts.Responses;
 using Chubb.Claims.Domain.Enums;
 
 namespace Chubb.Claims.Application.Features.Claims.Queries;
 
-public sealed record GetExposureAnalyticsQuery() : IQuery<ExposureAnalyticsResponse>;
-
 public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IFxRateService fxRateService)
-    : IQueryHandler<GetExposureAnalyticsQuery, ExposureAnalyticsResponse>
+    : IQueryHandler<GetExposureAnalyticsRequest, ExposureAnalyticsResponse>
 {
     private static readonly (string OfficerId, string OfficerName, string PrimaryMarkets)[] KnownOfficers =
     [
@@ -17,7 +16,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
         ("off-narong", "Narong Srisai", "TH, ID")
     ];
 
-    public async Task<ExposureAnalyticsResponse> HandleAsync(GetExposureAnalyticsQuery query, CancellationToken cancellationToken = default)
+    public async Task<ExposureAnalyticsResponse> HandleAsync(GetExposureAnalyticsRequest query, CancellationToken cancellationToken = default)
     {
         var claims = await repository.GetAllWithDetailsAsync(cancellationToken);
         var outboxMessages = await repository.GetRecentOutboxMessagesAsync(25, cancellationToken);

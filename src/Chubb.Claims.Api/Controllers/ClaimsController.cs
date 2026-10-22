@@ -1,8 +1,6 @@
-using Chubb.Claims.Api.Contracts.Requests;
 using Chubb.Claims.Application.Common.Dispatcher;
+using Chubb.Claims.Application.Contracts.Requests;
 using Chubb.Claims.Application.Contracts.Responses;
-using Chubb.Claims.Application.Features.Claims.Commands;
-using Chubb.Claims.Application.Features.Claims.Queries;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Chubb.Claims.Api.Controllers;
@@ -14,17 +12,9 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ClaimSummaryResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetClaims(
-        [FromQuery] string? market,
-        [FromQuery] string? claimType,
-        [FromQuery] string? status,
-        [FromQuery] string? claimantId,
-        [FromQuery] string? assignedOfficerId,
-        [FromQuery] string? search,
-        CancellationToken ct)
+    public async Task<IActionResult> GetClaims([FromQuery] GetClaimsListRequest request, CancellationToken ct)
     {
-        var result = await dispatcher.QueryAsync(
-            new GetClaimsListQuery(market, claimType, status, claimantId, assignedOfficerId, search), ct);
+        var result = await dispatcher.QueryAsync(request, ct);
         return Ok(result);
     }
 
@@ -36,44 +26,38 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
         var (_, _, role) = ResolveActor("clm-tan", "Tan Wei Ming", "Claimant");
         var isStaffRole = !role.Equals("Claimant", StringComparison.OrdinalIgnoreCase);
 
-        var result = await dispatcher.QueryAsync(new GetClaimByIdQuery(id, isStaffRole), ct);
+        var result = await dispatcher.QueryAsync(new GetClaimByIdRequest(id, isStaffRole), ct);
         return Ok(result);
     }
 
     [HttpPost]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> SubmitClaim([FromBody] SubmitClaimRequest req, CancellationToken ct)
+    public async Task<IActionResult> SubmitClaim([FromBody] SubmitClaimRequest request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("clm-tan", "Tan Wei Ming", "Claimant");
-        var command = new SubmitClaimCommand(
-            req.PolicyNumber,
-            req.Market,
-            req.ClaimType,
-            !string.IsNullOrWhiteSpace(req.ClaimantId) ? req.ClaimantId : actorId,
-            !string.IsNullOrWhiteSpace(req.ClaimantName) ? req.ClaimantName : actorName,
-            !string.IsNullOrWhiteSpace(req.ClaimantEmail) ? req.ClaimantEmail : "policyholder@example.com",
-            !string.IsNullOrWhiteSpace(req.ClaimantPhone) ? req.ClaimantPhone : "+65 9000 0000",
-            req.IncidentDateUtc == default ? DateTime.UtcNow : req.IncidentDateUtc,
-            req.IncidentLocation,
-            req.IncidentDescription,
-            req.AssetIdentifier,
-            req.EstimatedLoss);
+        var enrichedRequest = request with
+        {
+            ClaimantId = !string.IsNullOrWhiteSpace(request.ClaimantId) ? request.ClaimantId : actorId,
+            ClaimantName = !string.IsNullOrWhiteSpace(request.ClaimantName) ? request.ClaimantName : actorName
+        };
 
-        var created = await dispatcher.SendAsync(command, ct);
+        var created = await dispatcher.SendAsync(enrichedRequest, ct);
         return CreatedAtAction(nameof(GetClaimById), new { id = created.Id }, created);
     }
 
     [HttpPost("{id:guid}/pickup")]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> PickUpClaim(Guid id, [FromBody] PickUpClaimRequest? req, CancellationToken ct)
+    public async Task<IActionResult> PickUpClaim(Guid id, [FromBody] PickUpClaimRequest? request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
-        var command = new PickUpClaimCommand(
-            id,
-            !string.IsNullOrWhiteSpace(req?.OfficerId) ? req.OfficerId : actorId,
-            !string.IsNullOrWhiteSpace(req?.OfficerName) ? req.OfficerName : actorName);
+        var command = (request ?? new PickUpClaimRequest()) with
+        {
+            ClaimId = id,
+            OfficerId = !string.IsNullOrWhiteSpace(request?.OfficerId) ? request.OfficerId : actorId,
+            OfficerName = !string.IsNullOrWhiteSpace(request?.OfficerName) ? request.OfficerName : actorName
+        };
 
         var updated = await dispatcher.SendAsync(command, ct);
         return Ok(updated);
@@ -82,15 +66,15 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [HttpPut("{id:guid}/assessment")]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateAssessment(Guid id, [FromBody] UpdateAssessmentRequest req, CancellationToken ct)
+    public async Task<IActionResult> UpdateAssessment(Guid id, [FromBody] UpdateAssessmentRequest request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
-        var command = new UpdateClaimAssessmentCommand(
-            id,
-            req.AssessedReserve,
-            req.InternalNote,
-            !string.IsNullOrWhiteSpace(req.OfficerId) ? req.OfficerId : actorId,
-            !string.IsNullOrWhiteSpace(req.OfficerName) ? req.OfficerName : actorName);
+        var command = request with
+        {
+            ClaimId = id,
+            OfficerId = !string.IsNullOrWhiteSpace(request.OfficerId) ? request.OfficerId : actorId,
+            OfficerName = !string.IsNullOrWhiteSpace(request.OfficerName) ? request.OfficerName : actorName
+        };
 
         var updated = await dispatcher.SendAsync(command, ct);
         return Ok(updated);
@@ -99,14 +83,15 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [HttpPost("{id:guid}/request-info")]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> RequestInfo(Guid id, [FromBody] RequestInfoRequest req, CancellationToken ct)
+    public async Task<IActionResult> RequestInfo(Guid id, [FromBody] RequestInfoRequest request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
-        var command = new RequestClaimInfoCommand(
-            id,
-            req.Question,
-            !string.IsNullOrWhiteSpace(req.OfficerId) ? req.OfficerId : actorId,
-            !string.IsNullOrWhiteSpace(req.OfficerName) ? req.OfficerName : actorName);
+        var command = request with
+        {
+            ClaimId = id,
+            OfficerId = !string.IsNullOrWhiteSpace(request.OfficerId) ? request.OfficerId : actorId,
+            OfficerName = !string.IsNullOrWhiteSpace(request.OfficerName) ? request.OfficerName : actorName
+        };
 
         var updated = await dispatcher.SendAsync(command, ct);
         return Ok(updated);
@@ -115,15 +100,15 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [HttpPost("{id:guid}/respond-info")]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> RespondInfo(Guid id, [FromBody] RespondInfoRequest req, CancellationToken ct)
+    public async Task<IActionResult> RespondInfo(Guid id, [FromBody] RespondInfoRequest request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("clm-tan", "Tan Wei Ming", "Claimant");
-        var command = new RespondToClaimInfoCommand(
-            id,
-            req.Response,
-            req.SupportingDocumentRef,
-            !string.IsNullOrWhiteSpace(req.ClaimantId) ? req.ClaimantId : actorId,
-            !string.IsNullOrWhiteSpace(req.ClaimantName) ? req.ClaimantName : actorName);
+        var command = request with
+        {
+            ClaimId = id,
+            ClaimantId = !string.IsNullOrWhiteSpace(request.ClaimantId) ? request.ClaimantId : actorId,
+            ClaimantName = !string.IsNullOrWhiteSpace(request.ClaimantName) ? request.ClaimantName : actorName
+        };
 
         var updated = await dispatcher.SendAsync(command, ct);
         return Ok(updated);
@@ -132,15 +117,15 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [HttpPost("{id:guid}/settle")]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> SettleClaim(Guid id, [FromBody] SettleClaimRequest req, CancellationToken ct)
+    public async Task<IActionResult> SettleClaim(Guid id, [FromBody] SettleClaimRequest request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
-        var command = new SettleClaimCommand(
-            id,
-            req.SettledAmount,
-            req.DecisionNotes,
-            !string.IsNullOrWhiteSpace(req.OfficerId) ? req.OfficerId : actorId,
-            !string.IsNullOrWhiteSpace(req.OfficerName) ? req.OfficerName : actorName);
+        var command = request with
+        {
+            ClaimId = id,
+            OfficerId = !string.IsNullOrWhiteSpace(request.OfficerId) ? request.OfficerId : actorId,
+            OfficerName = !string.IsNullOrWhiteSpace(request.OfficerName) ? request.OfficerName : actorName
+        };
 
         var updated = await dispatcher.SendAsync(command, ct);
         return Ok(updated);
@@ -149,14 +134,15 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [HttpPost("{id:guid}/reject")]
     [ProducesResponseType(typeof(ClaimDetailResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> RejectClaim(Guid id, [FromBody] RejectClaimRequest req, CancellationToken ct)
+    public async Task<IActionResult> RejectClaim(Guid id, [FromBody] RejectClaimRequest request, CancellationToken ct)
     {
         var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
-        var command = new RejectClaimCommand(
-            id,
-            req.RejectionReason,
-            !string.IsNullOrWhiteSpace(req.OfficerId) ? req.OfficerId : actorId,
-            !string.IsNullOrWhiteSpace(req.OfficerName) ? req.OfficerName : actorName);
+        var command = request with
+        {
+            ClaimId = id,
+            OfficerId = !string.IsNullOrWhiteSpace(request.OfficerId) ? request.OfficerId : actorId,
+            OfficerName = !string.IsNullOrWhiteSpace(request.OfficerName) ? request.OfficerName : actorName
+        };
 
         var updated = await dispatcher.SendAsync(command, ct);
         return Ok(updated);

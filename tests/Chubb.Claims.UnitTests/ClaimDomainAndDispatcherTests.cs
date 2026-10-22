@@ -1,16 +1,13 @@
 using Chubb.Claims.Application;
 using Chubb.Claims.Application.Common.Dispatcher;
-using Chubb.Claims.Application.Features.Claims.Commands;
-using Chubb.Claims.Application.Features.Claims.Queries;
+using Chubb.Claims.Application.Contracts.Requests;
 using Chubb.Claims.Domain.Common;
 using Chubb.Claims.Domain.Entities;
 using Chubb.Claims.Domain.Enums;
 using Chubb.Claims.Domain.Events;
-using Chubb.Claims.Infrastructure;
 using Chubb.Claims.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Chubb.Claims.UnitTests;
@@ -66,7 +63,7 @@ public class ClaimDomainAndDispatcherTests
         // 3. Officer requests info -> Claimant responds -> returns to UnderReview
         claim.RequestAdditionalInfo("Upload builder invoice.", "off-raj", "Rajesh Patel");
         Assert.Equal(ClaimStatus.InfoRequested, claim.Status);
-        Assert.Equal(32000m, claim.ActiveReserveExposure); // Still holds reserve while awaiting info
+        Assert.Equal(32000m, claim.ActiveReserveExposure);
 
         claim.RespondToInformationRequest("Builder invoice #991 uploaded.", "INV-991.pdf", "clm-liam", "Liam");
         Assert.Equal(ClaimStatus.UnderReview, claim.Status);
@@ -117,8 +114,8 @@ public class ClaimDomainAndDispatcherTests
 
         var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
 
-        // 1. Submit Claim via IDispatcher
-        var created = await dispatcher.SendAsync(new SubmitClaimCommand(
+        // 1. Submit Claim via IDispatcher using SubmitClaimRequest
+        var created = await dispatcher.SendAsync(new SubmitClaimRequest(
             PolicyNumber: "SG-MTR-777777",
             Market: "SG",
             ClaimType: "Motor",
@@ -133,28 +130,28 @@ public class ClaimDomainAndDispatcherTests
             EstimatedLoss: 10000m));
 
         Assert.Equal("CHB-SG-" + DateTime.UtcNow.Year + "-1001", created.ClaimNumber);
-        Assert.Equal(7400m, created.ActiveReserveExposureUsd); // 10,000 SGD * 0.74 = 7,400 USD
+        Assert.Equal(7400m, created.ActiveReserveExposureUsd);
 
-        // 2. Officer adds internal note & adjusts reserve via IDispatcher
-        await dispatcher.SendAsync(new UpdateClaimAssessmentCommand(
-            created.Id,
+        // 2. Officer adds internal note & adjusts reserve via IDispatcher using UpdateAssessmentRequest
+        await dispatcher.SendAsync(new UpdateAssessmentRequest(
             AssessedReserve: 15000m,
             InternalNote: "CONFIDENTIAL OFFICER NOTE: Fraud check cleared, workshop estimate verified.",
             OfficerId: "off-sarah",
-            OfficerName: "Sarah Jenkins"));
+            OfficerName: "Sarah Jenkins",
+            ClaimId: created.Id));
 
         // 3. Query as Claimant -> Internal note MUST be masked
-        var claimantView = await dispatcher.QueryAsync(new GetClaimByIdQuery(created.Id, IsStaffRole: false));
+        var claimantView = await dispatcher.QueryAsync(new GetClaimByIdRequest(created.Id, IsStaffRole: false));
         Assert.Empty(claimantView.Notes);
-        Assert.Equal(11100m, claimantView.ActiveReserveExposureUsd); // 15,000 SGD * 0.74 = 11,100 USD
+        Assert.Equal(11100m, claimantView.ActiveReserveExposureUsd);
 
         // 4. Query as Staff -> Internal note MUST be visible
-        var staffView = await dispatcher.QueryAsync(new GetClaimByIdQuery(created.Id, IsStaffRole: true));
+        var staffView = await dispatcher.QueryAsync(new GetClaimByIdRequest(created.Id, IsStaffRole: true));
         Assert.Single(staffView.Notes);
         Assert.Contains("CONFIDENTIAL OFFICER NOTE", staffView.Notes[0].Content);
 
         // 5. Verify Transactional Outbox messages were written atomically
         var outboxCount = await db.OutboxMessages.CountAsync();
-        Assert.Equal(2, outboxCount); // ClaimSubmittedDomainEvent + ClaimReserveUpdatedDomainEvent
+        Assert.Equal(2, outboxCount);
     }
 }

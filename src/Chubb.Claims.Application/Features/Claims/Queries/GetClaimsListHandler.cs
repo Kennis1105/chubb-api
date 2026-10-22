@@ -1,23 +1,16 @@
 using Chubb.Claims.Application.Common.Dispatcher;
 using Chubb.Claims.Application.Common.Interfaces;
 using Chubb.Claims.Application.Contracts.Mappers;
+using Chubb.Claims.Application.Contracts.Requests;
 using Chubb.Claims.Application.Contracts.Responses;
 using Chubb.Claims.Domain.Enums;
 
 namespace Chubb.Claims.Application.Features.Claims.Queries;
 
-public sealed record GetClaimsListQuery(
-    string? Market = null,
-    string? ClaimType = null,
-    string? Status = null,
-    string? ClaimantId = null,
-    string? AssignedOfficerId = null,
-    string? Search = null) : IQuery<IReadOnlyList<ClaimSummaryResponse>>;
-
 public sealed class GetClaimsListHandler(IClaimsRepository repository, IFxRateService fxRateService)
-    : IQueryHandler<GetClaimsListQuery, IReadOnlyList<ClaimSummaryResponse>>
+    : IQueryHandler<GetClaimsListRequest, IReadOnlyList<ClaimSummaryResponse>>
 {
-    public async Task<IReadOnlyList<ClaimSummaryResponse>> HandleAsync(GetClaimsListQuery query, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ClaimSummaryResponse>> HandleAsync(GetClaimsListRequest query, CancellationToken cancellationToken = default)
     {
         var allClaims = await repository.GetAllWithDetailsAsync(cancellationToken);
         var filtered = allClaims.AsEnumerable();
