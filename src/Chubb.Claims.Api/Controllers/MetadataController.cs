@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Chubb.Claims.Api.Controllers;
 
+
+// This is used to populate some of the initial data, like currency, claim types, claim statuses, and personas for the front-end application. It is not meant to be used for any other purpose.
 [ApiController]
 [Route("api/metadata")]
 [Produces("application/json")]

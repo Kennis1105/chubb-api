@@ -80,8 +80,6 @@ public static class ClaimMapper
             claim.SettledAmount,
             claim.ActiveReserveExposure,
             fx.ConvertToUsd(claim.ActiveReserveExposure, claim.Currency),
-            fx.ConvertToUsd(claim.RealizedPayout, claim.Currency),
-            fx.ConvertToUsd(claim.ReleasedReserve, claim.Currency),
             claim.AssignedOfficerId,
             claim.AssignedOfficerName,
             claim.DecisionNotes,

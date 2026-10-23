@@ -5,39 +5,56 @@
 
 ---
 
-## 1. Quick Start (Run Locally in < 60 Seconds)
+## 1. Run Locally for the First Time
 
-### Option A: Zero-Docker Instant Start (Recommended for Fast Review)
-The backend uses SQLite (auto-created and seeded on startup with realistic claims across all 6 APAC markets) and a **Hybrid Kafka/In-Memory Event Producer** that automatically falls back to an in-memory channel + SignalR when a Kafka broker is not configured.
+Keep `chubb-api` and `chubb-frontend` as sibling folders. Install the .NET 10 SDK, Node.js/npm, Docker Desktop, and VS Code with C# Dev Kit. Docker runs Redpanda, a Kafka-compatible broker; the API and Angular app run on your Mac.
 
-**1. Start the .NET 10 Backend API (Port `5150`)**:
-```bash
-cd backend
-dotnet run --project src/Chubb.Claims.Api/Chubb.Claims.Api.csproj --urls "http://localhost:5150"
-```
-- **Swagger UI**: Open **`http://localhost:5150/swagger`**
-- **OpenAPI v1 JSON**: **`http://localhost:5150/openapi/v1.json`**
+### 1. Start Kafka
 
-**2. Start the Angular Frontend (Port `4200`)**:
-```bash
-cd frontend
-npm start
-```
-Open **`http://localhost:4200`** in your browser.
+Open a terminal in `chubb-api` (the folder containing `docker-compose.yml`):
 
-**3. Run Unit & Integration Tests**:
-```bash
-cd backend
-dotnet test
-```
-
-### Option B: With Real Kafka Broker (Redpanda via Docker Compose)
-If you want to see events published to a live Kafka broker (`localhost:19092`, topic `chubb.apac.claims.events`):
 ```bash
 docker compose up -d
-cd backend
-Kafka__BootstrapServers="localhost:19092" dotnet run --project src/Chubb.Claims.Api/Chubb.Claims.Api.csproj --urls "http://localhost:5150"
+docker compose ps
+docker exec chubb-apac-kafka rpk topic create chubb.apac.claims.events
 ```
+
+Wait until `docker compose ps` shows `healthy`. Create the topic only once; an “already exists” response on later runs is fine. The API connects to Kafka at `localhost:19092`, the broker's advertised address for programs running on your Mac.
+
+### 2. Start the API with VS Code Run and Debug
+
+Open `chubb-api.code-workspace` in VS Code. If an earlier API debug session is running, stop it first. In **Run and Debug**, select the C# launch configuration for `Chubb.Claims.Api` and press **F5**. The project's `src/Chubb.Claims.Api/Properties/launchSettings.json` supplies `Kafka__BootstrapServers=localhost:19092` to this debug session. You do not need to type a terminal environment variable when using F5.
+
+Check `http://localhost:5150/swagger`. The API creates and seeds its SQLite database on first startup. If you use a different VS Code `launch.json` configuration that ignores `launchSettings.json`, set `Kafka__BootstrapServers` to `localhost:19092` in that configuration's `env` section and restart the debugger.
+
+### 3. Start Angular
+
+In a second terminal, from the sibling `chubb-frontend` folder:
+
+```bash
+npm ci
+npm start
+```
+
+Open `http://localhost:4200`.
+
+### 4. Confirm an event reaches Kafka
+
+In another terminal, run:
+
+```bash
+docker exec -it chubb-apac-kafka rpk topic consume chubb.apac.claims.events
+```
+
+Leave the consumer open, then submit or update a claim in Angular. A new event should appear. The API first saves the claim and an outbox row in SQLite; `OutboxRelayWorker` publishes the row to Kafka. Previously processed outbox rows are not replayed when Kafka starts. If the consumer shows nothing, confirm that the API debug session was restarted after the Kafka launch setting changed and that you performed a new claim action. `GET /api/analytics/summary` also shows each recent event's `transportMode`; successful publishing is labelled `Kafka (...)`.
+
+### Later runs and optional checks
+
+On later runs, start Docker with `docker compose up -d`, press **F5** for the API, then run `npm start` in `chubb-frontend`. SQLite data persists between runs. To stop the broker while keeping its container and topic, run `docker compose stop` from `chubb-api`. `docker compose down` removes the container; because this Compose file has no data volume, create the topic again after the next `up`. Neither command deletes the API's SQLite database.
+
+For a terminal API run instead of VS Code, run `dotnet run` from `chubb-api/src/Chubb.Claims.Api`. The same launch profile supplies the Kafka setting. Run backend tests from `chubb-api` with `dotnet test Chubb.Claims.sln`.
+
+The API can run without Docker. If Kafka is unavailable, the current producer falls back to a local event stream and SignalR. In this POC the worker still marks the outbox row processed after that fallback, so those events will not later be sent to Kafka automatically.
 
 ---
 
@@ -48,7 +65,7 @@ Kafka__BootstrapServers="localhost:19092" dotnet run --project src/Chubb.Claims.
 - **`ClaimInformationRequest`**: Structured question/verification request raised by a Claims Officer when placing a claim into `InfoRequested` status, and resolved when the Claimant submits their response/document reference.
 - **`ClaimNote`**: Internal adjuster assessment notes attached to a claim (`IsInternalOnly = true`). Automatically stripped by the Application Query Handler (`GetClaimByIdHandler`) when queried by a `Claimant` persona.
 - **`ClaimAuditEntry`**: Immutable chronological audit record created on every state change or reserve adjustment.
-- **`OutboxMessage`**: Transactional Outbox entity persisted in the exact same SQLite database transaction as `Claim` mutations to guarantee at-least-once event delivery to Kafka without dual-write bugs.
+- **`OutboxMessage`**: Event record persisted in the same SQLite database save as the claim change. The background worker publishes it after the save. Kafka delivery is not guaranteed when the current local fallback marks a message processed.
 
 ### Q2: Is the backend one service or more than one? What drives that decision?
 - **Decision**: A **Clean Architecture Modular Monolith** (`Domain`, `Application`, `Infrastructure`, `Api` + Background `OutboxRelayWorker`) inside a single `.NET 10` solution.
@@ -61,7 +78,8 @@ Kafka__BootstrapServers="localhost:19092" dotnet run --project src/Chubb.Claims.
 |---|---|---|
 | **Submit Claim (FNOL), Pick Up Claim, Update Reserve, Request/Respond Info, Settle/Reject** | **REST/HTTP (`POST`/`PUT`)** | The user (Claimant or Claims Officer) is waiting for immediate domain validation (e.g., state machine rules, positive reserve checks) and confirmation that their action succeeded. |
 | **Query Claims Queue, Claim Details, Exposure Dashboard** | **REST/HTTP (`GET`)** | Request/response read queries with filter parameters. |
-| **Liability Exposure Recalculation, Audit Streaming, Cross-Tab Live Alerts** | **Kafka (`chubb.apac.claims.events`) + SignalR Push** | Downstream side effects of state transitions (`ClaimSubmittedDomainEvent`, `ClaimReserveUpdatedDomainEvent`, `ClaimSettledDomainEvent`, `ClaimRejectedDomainEvent`). Decoupled via the **Transactional Outbox Pattern** (`OutboxRelayWorker`). |
+| **Claim change events for future backend consumers** | **Kafka (`chubb.apac.claims.events`)** | The outbox worker publishes state changes after the claim is saved. This POC produces events but has no Kafka consumer yet. |
+| **Live browser refresh** | **SignalR** | Connected Angular clients refresh after a claim event. The analytics summary currently reads SQLite directly. |
 
 ### Q4: How does the system calculate Outstanding Liability Exposure across 6 APAC markets?
 Insurance claims across **SG (`SGD`), HK (`HKD`), AU (`AUD`), MY (`MYR`), TH (`THB`), and ID (`IDR`)** cannot be naively summed in local currency, nor is a claim's financial exposure static:

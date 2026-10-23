@@ -72,3 +72,43 @@ Change the demo claimant's name to Lim Hean Soon and the claims officer's name t
 
 ### What I Accepted
 Updated the current persona metadata, seeded and existing local claim records, handler defaults, UI fallbacks, and tests. Kept the existing persona IDs so claims remain associated with the same demo users. Verified with four passing .NET tests and a successful Angular production build.
+
+---
+
+## Entry 6: Claim Form Defaults
+
+### What I Challenged
+The new claim form opened with a complete sample incident already filled in, making it easy to submit a claim with example data by mistake.
+
+### What I Changed
+Removed the hardcoded form values, added selection prompts and required-field validation, and reset the form each time it opens. Also corrected the currency label to follow the selected market. Verified with an Angular production build.
+
+---
+
+## Entry 7: Analytics Endpoint Name
+
+### What I Challenged
+`/api/analytics/exposure` was too narrow a name for a response that also includes claim counts, market breakdowns, officer workload, and recent events.
+
+### What I Changed
+Renamed the route to `/api/analytics/summary` and updated the Angular client. Kept exposure as the name of the financial metric. Verified both the .NET and Angular builds.
+
+---
+
+## Entry 8: Local Kafka Setup for VS Code Debugging
+
+### What I Asked the AI
+Document first-time local setup for Docker/Redpanda, the API started with VS Code Run and Debug, and the Angular frontend.
+
+### What I Accepted
+Added the local broker address to the API's debug launch profile and replaced the README's outdated startup commands with the actual sibling-repo workflow, topic creation, and event verification steps. Clarified that Kafka has a producer but no consumer in this POC, and that the current fallback does not guarantee eventual Kafka delivery. Validated the Compose file and launch profile syntax.
+
+---
+
+## Entry 9: Officer Assessment UI
+
+### What I Challenged
+The API supported `UpdateClaimAssessmentHandler`, but the officer screen had no way to adjust a reserve or add an internal note.
+
+### What I Changed
+Added an Update Assessment section for claims under review or awaiting information. Officers can change the assessed reserve, add an internal note, and see saved notes. The screen refreshes the claim and exposure summary after saving. Verified with an Angular production build.

@@ -4,6 +4,7 @@ namespace Chubb.Claims.Infrastructure.Services;
 
 public sealed class ApacFxRateService : IFxRateService
 {
+    // Usually these rates would fetched from other service as broker, but for the purpose of this exercise, we will hardcode them here.
     private static readonly Dictionary<string, decimal> UsdRates = new(StringComparer.OrdinalIgnoreCase)
     {
         ["SGD"] = 0.74m,       // Singapore Dollar -> USD

@@ -23,8 +23,6 @@ public sealed record ClaimDetailResponse(
     decimal? SettledAmount,
     decimal ActiveReserveExposure,
     decimal ActiveReserveExposureUsd,
-    decimal RealizedPayoutUsd,
-    decimal ReleasedReserveUsd,
     string? AssignedOfficerId,
     string? AssignedOfficerName,
     string? DecisionNotes,
