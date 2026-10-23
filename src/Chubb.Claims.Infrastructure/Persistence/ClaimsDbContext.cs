@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Chubb.Claims.Domain.Common;
 using Chubb.Claims.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,25 +47,24 @@ public class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) : DbCont
                 .WithOne()
                 .HasForeignKey(a => a.ClaimId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            entity.Navigation(c => c.InformationRequests).UsePropertyAccessMode(PropertyAccessMode.Field);
-            entity.Navigation(c => c.Notes).UsePropertyAccessMode(PropertyAccessMode.Field);
-            entity.Navigation(c => c.AuditTrail).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
         modelBuilder.Entity<ClaimInformationRequest>(entity =>
         {
             entity.HasKey(r => r.Id);
+            entity.Ignore(r => r.DomainEvents);
         });
 
         modelBuilder.Entity<ClaimNote>(entity =>
         {
             entity.HasKey(n => n.Id);
+            entity.Ignore(n => n.DomainEvents);
         });
 
         modelBuilder.Entity<ClaimAuditEntry>(entity =>
         {
             entity.HasKey(a => a.Id);
+            entity.Ignore(a => a.DomainEvents);
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>
@@ -76,43 +76,36 @@ public class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) : DbCont
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // Ensure child entities added to private backing lists on tracked Claims are explicitly tracked as Added
         foreach (var claimEntry in ChangeTracker.Entries<Claim>())
         {
             foreach (var req in claimEntry.Entity.InformationRequests)
             {
                 if (Entry(req).State == EntityState.Detached || (Entry(req).State == EntityState.Modified && !await InformationRequests.AnyAsync(x => x.Id == req.Id, cancellationToken)))
-                {
                     Entry(req).State = EntityState.Added;
-                }
             }
 
             foreach (var note in claimEntry.Entity.Notes)
             {
                 if (Entry(note).State == EntityState.Detached || (Entry(note).State == EntityState.Modified && !await Notes.AnyAsync(x => x.Id == note.Id, cancellationToken)))
-                {
                     Entry(note).State = EntityState.Added;
-                }
             }
 
             foreach (var audit in claimEntry.Entity.AuditTrail)
             {
                 if (Entry(audit).State == EntityState.Detached || (Entry(audit).State == EntityState.Modified && !await AuditEntries.AnyAsync(x => x.Id == audit.Id, cancellationToken)))
-                {
                     Entry(audit).State = EntityState.Added;
-                }
             }
         }
 
-        // Extract Domain Events and persist as Transactional Outbox messages in the same atomic DB transaction
-        var claimsWithEvents = ChangeTracker.Entries<Claim>()
+        // Generically extract DomainEvents from any tracked BaseEntity and persist into OutboxMessages
+        var entitiesWithEvents = ChangeTracker.Entries<BaseEntity>()
             .Where(e => e.Entity.DomainEvents.Count > 0)
             .Select(e => e.Entity)
             .ToList();
 
-        foreach (var claim in claimsWithEvents)
+        foreach (var entity in entitiesWithEvents)
         {
-            foreach (var domainEvent in claim.DomainEvents)
+            foreach (var domainEvent in entity.DomainEvents)
             {
                 var payloadJson = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), new JsonSerializerOptions
                 {
@@ -122,7 +115,7 @@ public class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) : DbCont
                 OutboxMessages.Add(new OutboxMessage
                 {
                     Id = domainEvent.EventId,
-                    AggregateId = claim.Id,
+                    AggregateId = entity.Id,
                     EventType = domainEvent.EventType,
                     Topic = "chubb.apac.claims.events",
                     PayloadJson = payloadJson,
@@ -130,7 +123,7 @@ public class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) : DbCont
                 });
             }
 
-            claim.ClearDomainEvents();
+            entity.DomainEvents.Clear();
         }
 
         return await base.SaveChangesAsync(cancellationToken);

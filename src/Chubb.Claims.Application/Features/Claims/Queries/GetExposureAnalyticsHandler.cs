@@ -6,20 +6,18 @@ using Chubb.Claims.Domain.Enums;
 
 namespace Chubb.Claims.Application.Features.Claims.Queries;
 
-public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IFxRateService fxRateService)
+public sealed class GetExposureAnalyticsHandler(IClaimRepository repository, IFxRateService fxRateService)
     : IQueryHandler<GetExposureAnalyticsRequest, ExposureAnalyticsResponse>
 {
     private static readonly (string OfficerId, string OfficerName, string PrimaryMarkets)[] KnownOfficers =
     [
-        ("off-sarah", "Sarah Jenkins", "SG, HK"),
-        ("off-raj", "Rajesh Patel", "AU, MY"),
-        ("off-narong", "Narong Srisai", "TH, ID")
+        ("off-sarah", "Admin Officer", "APAC (SG, HK, AU, MY, TH, ID)")
     ];
 
     public async Task<ExposureAnalyticsResponse> HandleAsync(GetExposureAnalyticsRequest query, CancellationToken cancellationToken = default)
     {
         var claims = await repository.GetAllWithDetailsAsync(cancellationToken);
-        var outboxMessages = await repository.GetRecentOutboxMessagesAsync(25, cancellationToken);
+        var outboxMessages = await repository.GetRecentOutboxMessagesAsync(15, cancellationToken);
 
         var totalActiveUsd = claims.Sum(c => fxRateService.ConvertToUsd(c.ActiveReserveExposure, c.Currency));
         var totalSettledUsd = claims.Sum(c => fxRateService.ConvertToUsd(c.RealizedPayout, c.Currency));
@@ -48,6 +46,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
                     settledNative,
                     fxRateService.ConvertToUsd(settledNative, currency));
             })
+            .Where(m => m.TotalClaimsCount > 0)
             .OrderByDescending(m => m.ActiveReserveUsd)
             .ToList();
 
@@ -70,7 +69,7 @@ public sealed class GetExposureAnalyticsHandler(IClaimsRepository repository, IF
             var closed = assigned.Where(c => c.ClosedAtUtc.HasValue).ToList();
             var avgHours = closed.Count > 0
                 ? Math.Round(closed.Average(c => (c.ClosedAtUtc!.Value - c.SubmittedAtUtc).TotalHours), 1)
-                : 18.5;
+                : 12.0;
 
             return new OfficerWorkloadResponse(
                 officer.OfficerId,

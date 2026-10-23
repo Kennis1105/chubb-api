@@ -62,3 +62,13 @@ Build the Angular 19 standalone application serving Claimants, Claims Officers, 
 ### What I Challenged & Refined
 - **Challenge (Demonstrating Both Personas Fluidly in a 15-Minute Demo)**: Logging out and logging back in repeatedly during a live panel walkthrough wastes time and breaks flow.
   - *Refinement*: Implemented a top-bar **Live Persona Switcher** pre-loaded with 7 realistic APAC personas (`Tan Wei Ming - SG Claimant`, `Chloe Chan - HK Claimant`, `Liam O'Connor - AU Claimant`, `Sarah Jenkins - SG/HK Officer`, `Rajesh Patel - AU/MY Officer`, `Narong Srisai - TH/ID Officer`, and `Victoria Lim - VP APAC Claims Manager`). Switching personas immediately updates the HTTP headers (`X-Demo-User-Id`, `X-Demo-Role`) and adapts the UI between the **Claimant Self-Service Portal**, **Claims Officer Triage & Assessment Workbench**, and **Executive APAC Liability Exposure Dashboard**.
+
+---
+
+## Entry 5: Demo Persona Names
+
+### What I Asked the AI
+Change the demo claimant's name to Lim Hean Soon and the claims officer's name to Admin Officer.
+
+### What I Accepted
+Updated the current persona metadata, seeded and existing local claim records, handler defaults, UI fallbacks, and tests. Kept the existing persona IDs so claims remain associated with the same demo users. Verified with four passing .NET tests and a successful Angular production build.

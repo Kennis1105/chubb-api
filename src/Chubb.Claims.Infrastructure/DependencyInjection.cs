@@ -17,7 +17,7 @@ public static class DependencyInjection
         services.AddDbContext<ClaimsDbContext>(options =>
             options.UseSqlite(connectionString));
 
-        services.AddScoped<IClaimsRepository, ClaimsRepository>();
+        services.AddScoped<IClaimRepository, ClaimRepository>();
         services.AddSingleton<IFxRateService, ApacFxRateService>();
 
         services.AddSingleton<KafkaHybridEventProducer>();

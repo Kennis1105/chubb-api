@@ -23,7 +23,8 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetClaimById(Guid id, CancellationToken ct)
     {
-        var (_, _, role) = ResolveActor("clm-tan", "Tan Wei Ming", "Claimant");
+        // put _ for discarding it since we dont need it, we only need role
+        var (_, _, role) = ResolveActor("clm-tan", "Lim Hean Soon", "Claimant");
         var isStaffRole = !role.Equals("Claimant", StringComparison.OrdinalIgnoreCase);
 
         var result = await dispatcher.QueryAsync(new GetClaimByIdRequest(id, isStaffRole), ct);
@@ -35,7 +36,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SubmitClaim([FromBody] SubmitClaimRequest request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("clm-tan", "Tan Wei Ming", "Claimant");
+        var (actorId, actorName, _) = ResolveActor("clm-tan", "Lim Hean Soon", "Claimant");
         var enrichedRequest = request with
         {
             ClaimantId = !string.IsNullOrWhiteSpace(request.ClaimantId) ? request.ClaimantId : actorId,
@@ -51,7 +52,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> PickUpClaim(Guid id, [FromBody] PickUpClaimRequest? request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
+        var (actorId, actorName, _) = ResolveActor("off-sarah", "Admin Officer", "ClaimsOfficer");
         var command = (request ?? new PickUpClaimRequest()) with
         {
             ClaimId = id,
@@ -68,7 +69,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateAssessment(Guid id, [FromBody] UpdateAssessmentRequest request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
+        var (actorId, actorName, _) = ResolveActor("off-sarah", "Admin Officer", "ClaimsOfficer");
         var command = request with
         {
             ClaimId = id,
@@ -85,7 +86,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RequestInfo(Guid id, [FromBody] RequestInfoRequest request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
+        var (actorId, actorName, _) = ResolveActor("off-sarah", "Admin Officer", "ClaimsOfficer");
         var command = request with
         {
             ClaimId = id,
@@ -102,7 +103,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RespondInfo(Guid id, [FromBody] RespondInfoRequest request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("clm-tan", "Tan Wei Ming", "Claimant");
+        var (actorId, actorName, _) = ResolveActor("clm-tan", "Lim Hean Soon", "Claimant");
         var command = request with
         {
             ClaimId = id,
@@ -119,7 +120,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SettleClaim(Guid id, [FromBody] SettleClaimRequest request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
+        var (actorId, actorName, _) = ResolveActor("off-sarah", "Admin Officer", "ClaimsOfficer");
         var command = request with
         {
             ClaimId = id,
@@ -136,7 +137,7 @@ public sealed class ClaimsController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RejectClaim(Guid id, [FromBody] RejectClaimRequest request, CancellationToken ct)
     {
-        var (actorId, actorName, _) = ResolveActor("off-sarah", "Sarah Jenkins", "ClaimsOfficer");
+        var (actorId, actorName, _) = ResolveActor("off-sarah", "Admin Officer", "ClaimsOfficer");
         var command = request with
         {
             ClaimId = id,

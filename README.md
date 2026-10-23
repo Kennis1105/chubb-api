@@ -76,8 +76,8 @@ Insurance claims across **SG (`SGD`), HK (`HKD`), AU (`AUD`), MY (`MYR`), TH (`T
 
 ### Q5: How does a single Angular codebase serve two distinct user types?
 - **Role-Aware Context & Persona Switcher**: The top navigation bar includes a **Live Persona Switcher** allowing the interview panel to toggle instantaneously between:
-  - **Claimants** (`Tan Wei Ming - SG`, `Chloe Chan - HK`, `Liam O'Connor - AU`): Sees `/portal` mode — their personal claims, visual 4-stage progress stepper, FNOL submission modal, and a highlighted **"Action Required: Respond to Information Request"** card when an officer requests documents.
-  - **Claims Officers** (`Sarah Jenkins - SG/HK`, `Rajesh Patel - AU/MY`, `Narong Srisai - TH/ID`): Sees the **Triage & Assessment Workbench** — multi-market filters, 1-click "Pick Up & Assign to Me", reserve adjustment, confidential adjuster notes, info requests, and Settlement/Rejection authority.
+  - **Claimants** (`Lim Hean Soon - SG`, `Chloe Chan - HK`, `Liam O'Connor - AU`): Sees `/portal` mode — their personal claims, visual 4-stage progress stepper, FNOL submission modal, and a highlighted **"Action Required: Respond to Information Request"** card when an officer requests documents.
+  - **Claims Officers** (`Admin Officer - SG/HK`, `Rajesh Patel - AU/MY`, `Narong Srisai - TH/ID`): Sees the **Triage & Assessment Workbench** — multi-market filters, 1-click "Pick Up & Assign to Me", reserve adjustment, confidential adjuster notes, info requests, and Settlement/Rejection authority.
   - **Claims Manager** (`Victoria Lim - VP APAC Claims`): Sees the **Executive Liability Exposure & Team Workload Dashboard** — consolidated USD active exposure, 6-market native + USD table, per-officer workload & cycle time, and the live Outbox/Kafka event ticker.
 
 ---

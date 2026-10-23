@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Chubb.Claims.Infrastructure.Persistence;
 
-public sealed class ClaimsRepository(ClaimsDbContext dbContext) : IClaimsRepository
+public sealed class ClaimRepository(ClaimsDbContext dbContext) : IClaimRepository
 {
     public async Task<Claim?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -26,18 +26,24 @@ public sealed class ClaimsRepository(ClaimsDbContext dbContext) : IClaimsReposit
             .ToListAsync(cancellationToken);
     }
 
-    public async Task AddAsync(Claim claim, CancellationToken cancellationToken = default)
-    {
-        await dbContext.Claims.AddAsync(claim, cancellationToken);
-    }
-
     public async Task<int> GetNextSequenceNumberAsync(MarketCode market, CancellationToken cancellationToken = default)
     {
         var count = await dbContext.Claims.CountAsync(c => c.Market == market, cancellationToken);
         return 1001 + count;
     }
 
-    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    public async Task AddAsync(Claim claim, CancellationToken cancellationToken = default)
+    {
+        await dbContext.Claims.AddAsync(claim, cancellationToken);
+    }
+
+    public Task UpdateAsync(Claim claim, CancellationToken cancellationToken = default)
+    {
+        dbContext.Claims.Update(claim);
+        return Task.CompletedTask;
+    }
+
+    public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
         await dbContext.SaveChangesAsync(cancellationToken);
     }

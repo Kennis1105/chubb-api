@@ -23,13 +23,8 @@ public sealed class GetBootstrapMetadataHandler(IFxRateService fxService)
 
         var personas = new List<PersonaMetadataResponse>
         {
-            new("clm-tan", "Tan Wei Ming", "Claimant", "SG", "Policyholder (Singapore - Motor & Property)", "weiming.tan@example.sg", "+65 9123 4567"),
-            new("clm-chloe", "Chloe Chan", "Claimant", "HK", "Policyholder (Hong Kong - Commercial Property)", "chloe.chan@example.hk", "+852 9388 1120"),
-            new("clm-liam", "Liam O'Connor", "Claimant", "AU", "Policyholder (Australia - Motor & Property)", "liam.oconnor@example.com.au", "+61 412 889 301"),
-            new("off-sarah", "Sarah Jenkins", "ClaimsOfficer", "SG, HK", "Senior Claims Adjuster (SG & HK)", "sarah.jenkins@chubb.com", "+65 6333 8800"),
-            new("off-raj", "Rajesh Patel", "ClaimsOfficer", "AU, MY", "Claims Specialist (AU & MY)", "rajesh.patel@chubb.com", "+61 2 9273 0100"),
-            new("off-narong", "Narong Srisai", "ClaimsOfficer", "TH, ID", "Regional Claims Officer (TH & ID)", "narong.srisai@chubb.com", "+66 2 611 4000"),
-            new("mgr-victoria", "Victoria Lim", "ClaimsManager", "APAC (All 6 Markets)", "VP, APAC Claims Operations & Exposure", "victoria.lim@chubb.com", "+65 6333 8000")
+            new("clm-tan", "Lim Hean Soon", "Claimant", "SG", "Customer / Policyholder", "weiming.tan@example.sg", "+65 9123 4567"),
+            new("off-sarah", "Admin Officer", "ClaimsOfficer", "APAC", "Claims Officer (Insurance Staff)", "sarah.jenkins@chubb.com", "+65 6333 8800")
         };
 
         var response = new BootstrapMetadataResponse(

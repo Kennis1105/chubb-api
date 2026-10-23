@@ -6,7 +6,7 @@ using Chubb.Claims.Application.Contracts.Responses;
 
 namespace Chubb.Claims.Application.Features.Claims.Queries;
 
-public sealed class GetClaimByIdHandler(IClaimsRepository repository, IFxRateService fxRateService)
+public sealed class GetClaimByIdHandler(IClaimRepository repository, IFxRateService fxRateService)
     : IQueryHandler<GetClaimByIdRequest, ClaimDetailResponse>
 {
     public async Task<ClaimDetailResponse> HandleAsync(GetClaimByIdRequest query, CancellationToken cancellationToken = default)

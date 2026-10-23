@@ -7,7 +7,7 @@ using Chubb.Claims.Domain.Enums;
 
 namespace Chubb.Claims.Application.Features.Claims.Queries;
 
-public sealed class GetClaimsListHandler(IClaimsRepository repository, IFxRateService fxRateService)
+public sealed class GetClaimsListHandler(IClaimRepository repository, IFxRateService fxRateService)
     : IQueryHandler<GetClaimsListRequest, IReadOnlyList<ClaimSummaryResponse>>
 {
     public async Task<IReadOnlyList<ClaimSummaryResponse>> HandleAsync(GetClaimsListRequest query, CancellationToken cancellationToken = default)
