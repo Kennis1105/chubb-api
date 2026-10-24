@@ -22,13 +22,11 @@ Currently:
 ### 2.2 Claim Lifecycle & State Machine
 ```
 [Submitted] ──(Officer Picks Up)──> [UnderReview]
-     ▲                                   │
-     │                                   ├──(Request Info)──> [InfoRequested]
-     │                                   │                          │
-     │                                   ◄──(Claimant Responds)─────┘
-     │                                   │
-     │                                   ├──(Approve / Settle)──> [Settled] (Terminal)
-     │                                   └──(Reject Claim)──────> [Rejected] (Terminal)
+                                         ├──(Request Info)──> [InfoRequested]
+                                         │                          │
+                                         ◄──(Claimant Responds)─────┘
+                                         ├──(Approve / Settle)──> [Settled] (Terminal)
+                                         └──(Reject Claim)──────> [Rejected] (Terminal)
 ```
 
 ### 2.3 Dynamic Liability Exposure & Reserve Rules
@@ -47,28 +45,19 @@ Every claim tracks three financial figures in its native currency (and normalize
 
 ## 3. Functional Requirements
 
-### FR-1: Claimant Self-Service Portal (`/portal`)
-- **FR-1.1 Report Incident (FNOL)**: Submit a new Motor or Property claim specifying Policy Number, Market (`SG`, `HK`, `AU`, `MY`, `TH`, `ID`), Claim Type (`Motor` | `Property`), Incident Date, Incident Location, Description, Estimated Loss (in market currency), and Asset Identifier (Vehicle Plate or Property Address).
-- **FR-1.2 Track Claim & Timeline**: View list of personal claims with real-time status stepper (`Submitted` -> `Under Review` -> `Action Required: Info Requested` -> `Settled` / `Rejected`) and full chronological audit history.
-- **FR-1.3 Respond to Information Requests**: When a claim is in `InfoRequested` status, clearly highlight the officer's question and allow the claimant to submit their response/evidence, automatically transitioning the claim back to `UnderReview` and notifying the assigned officer.
-- **FR-1.4 View Final Decision**: Display settlement payout breakdown or rejection rationale once decided.
+### FR-1: Claimant View
+- **FR-1.1 Report Incident (FNOL)**: Submit a Motor or Property claim with Policy Number, Market (`SG`, `HK`, `AU`, `MY`, `TH`, `ID`), Claim Type, Incident Location, Description, Estimated Loss (in market currency), and Asset Identifier (Vehicle Plate or Property Address).
+- **FR-1.2 Track Claim**: View personal claims and their current statuses.
+- **FR-1.3 Respond to Information Requests**: When a claim is in `InfoRequested` status, show the officer's question and allow the claimant to respond, returning the claim to `UnderReview`.
+- **FR-1.4 View Final Decision**: Display the approved payout amount or rejection rationale once decided.
 
-### FR-2: Claims Officer Workbench (`/workbench`)
-- **FR-2.1 Consolidated Triage & Queue**: Filterable queue across all 6 APAC markets, Claim Types (`Motor`, `Property`), and Statuses (`Unassigned / Submitted`, `My Active Queue`, `Awaiting Claimant Info`, `Closed`).
+### FR-2: Claims Officer View
+- **FR-2.1 Consolidated Triage & Queue**: Show claims across the supported markets, with a status filter and workload summary.
 - **FR-2.2 Pick Up / Assign Claim**: One-click "Pick Up Claim" assigns the claim to the officer, moves status to `UnderReview`, and logs an event.
-- **FR-2.3 Assessment & Reserve Adjustment**: Allow the officer to update the `AssessedReserve` amount and add internal assessment notes (`ClaimNote`), immediately recalculating outstanding liability exposure via domain events.
+- **FR-2.3 Assessment & Reserve Adjustment**: Allow the officer to update the `AssessedReserve` amount and add internal assessment notes (`ClaimNote`). The summary reads the updated amounts from SQLite.
 - **FR-2.4 Request Additional Information**: Send a structured question to the claimant, transitioning status to `InfoRequested`.
 - **FR-2.5 Progress to Settlement or Rejection**:
   - **Settle**: Specify final `SettledAmount` and settlement decision notes -> transitions to `Settled`, zeroes out active reserve exposure, and increments settled payout totals.
   - **Reject**: Specify rejection reason -> transitions to `Rejected` and releases active reserve exposure.
 
-### FR-3: Claims Manager Analytics & Workload View (`/workbench/analytics`)
-- **FR-3.1 Real-Time Liability Exposure Dashboard**:
-  - Total Consolidated Active Reserve Exposure (in USD).
-  - Total Settled Payouts (in USD) & Total Released Reserves (in USD).
-  - Breakdown by APAC Market (`SG`, `HK`, `AU`, `MY`, `TH`, `ID`) showing both native currency reserve totals and USD equivalent.
-  - Breakdown by Line of Business (`Motor` vs. `Property`).
-- **FR-3.2 Team Workload & Performance Matrix**:
-  - Per-officer active claim count, awaiting-info count, settled/rejected count, total active reserve under management (USD), and average handling cycle time.
-- **FR-3.3 Live Event Stream Ticker**:
-  - Visual feed showing Outbox -> Kafka/EventBus domain events processed in real time via SignalR (`ClaimSubmittedDomainEvent`, `ClaimReserveUpdatedDomainEvent`, `ClaimInfoRequestedDomainEvent`, `ClaimSettledDomainEvent`, etc.).
+The officer view shows total pending liability, unassigned claims, active workload, and completed decisions. The analytics API also returns market, claim type, and officer breakdowns. A separate manager dashboard and live event ticker were left outside this POC.

@@ -3,33 +3,26 @@
 ## 1. Solution Structure (`.NET 10` Clean Architecture + Angular)
 
 ```
-chubb-claims-platform/
-├── .specify/
-│   └── memory/constitution.md
-├── specs/
-│   └── 001-claims-platform/
-│       ├── spec.md
-│       ├── plan.md
-│       └── tasks.md
-├── backend/
+Chubb/
+├── chubb-api/
 │   ├── Chubb.Claims.sln
 │   ├── src/
-│   │   ├── Chubb.Claims.Domain/          # Entities, Value Objects, Enums, Domain Events, Exceptions
-│   │   ├── Chubb.Claims.Application/     # IDispatcher, Commands/Handlers, Queries/Handlers, DTOs, Interfaces
-│   │   ├── Chubb.Claims.Infrastructure/  # EF Core SQLite, Outbox, Hybrid Kafka/Channel Bus, FX Service, Seeder
-│   │   └── Chubb.Claims.Api/             # .NET 10 API Endpoints, SignalR Hub, Background Outbox/Kafka Workers
-│   └── tests/
-│       └── Chubb.Claims.UnitTests/       # Domain State Machine, Reserve Exposure & Handler Unit Tests
-├── frontend/                             # Angular Standalone Application (Claimant Portal + Staff Workbench)
-├── docker-compose.yml                    # Optional Redpanda (Kafka-compatible) + Backend + Frontend
-├── AI_WORKING_JOURNAL.md                 # Required Deliverable: Running log of prompts, challenges, overrides
-└── README.md                             # Walkthrough & Architecture defense guide
+│   │   ├── Chubb.Claims.Domain/
+│   │   ├── Chubb.Claims.Application/
+│   │   ├── Chubb.Claims.Infrastructure/
+│   │   └── Chubb.Claims.Api/             # Controllers, SignalR, in-process outbox worker
+│   ├── tests/Chubb.Claims.UnitTests/
+│   ├── specs/001-claims-platform/
+│   ├── docker-compose.yml                # Optional Redpanda broker
+│   ├── AI_WORKING_JOURNAL.md
+│   └── README.md
+└── chubb-frontend/                        # Angular claimant and officer views
 ```
 
 ## 2. Clean Architecture & `IDispatcher` Design
 
 ### 2.1 Custom `IDispatcher` (`Chubb.Claims.Application/Common/Dispatcher`)
-Instead of bloated third-party mediator libraries with licensing overhead, we implement a clean, zero-dependency, strongly-typed `IDispatcher` registered in Microsoft DI:
+Use a small `IDispatcher` registered in Microsoft DI:
 - `ICommand<TResponse>` and `ICommandHandler<TCommand, TResponse>`
 - `IQuery<TResponse>` and `IQueryHandler<TQuery, TResponse>`
 - `IDispatcher.SendAsync<TResponse>(ICommand<TResponse> command, CancellationToken ct)`
@@ -37,15 +30,15 @@ Instead of bloated third-party mediator libraries with licensing overhead, we im
 
 ### 2.2 Application Layer Handlers
 **Command Handlers (`Features/Claims/Commands/`)**:
-1. `SubmitClaimHandler` (`SubmitClaimCommand` -> `ClaimDetailDto`)
-2. `PickUpClaimHandler` (`PickUpClaimCommand` -> `ClaimDetailDto`)
-3. `UpdateClaimAssessmentHandler` (`UpdateClaimAssessmentCommand` -> `ClaimDetailDto`)
-4. `RequestClaimInfoHandler` (`RequestClaimInfoCommand` -> `ClaimDetailDto`)
-5. `RespondToClaimInfoHandler` (`RespondToClaimInfoCommand` -> `ClaimDetailDto`)
-6. `SettleClaimHandler` (`SettleClaimCommand` -> `ClaimDetailDto`)
-7. `RejectClaimHandler` (`RejectClaimCommand` -> `ClaimDetailDto`)
+1. `SubmitClaimHandler` (`SubmitClaimRequest` -> `ClaimDetailResponse`)
+2. `PickUpClaimHandler` (`PickUpClaimRequest` -> `ClaimDetailResponse`)
+3. `UpdateClaimAssessmentHandler` (`UpdateAssessmentRequest` -> `ClaimDetailResponse`)
+4. `RequestClaimInfoHandler` (`RequestInfoRequest` -> `ClaimDetailResponse`)
+5. `RespondToClaimInfoHandler` (`RespondInfoRequest` -> `ClaimDetailResponse`)
+6. `SettleClaimHandler` (`SettleClaimRequest` -> `ClaimDetailResponse`)
+7. `RejectClaimHandler` (`RejectClaimRequest` -> `ClaimDetailResponse`)
 
 **Query Handlers (`Features/Claims/Queries/`)**:
-1. `GetClaimsListHandler` (`GetClaimsListQuery` -> `IReadOnlyList<ClaimSummaryDto>`)
-2. `GetClaimByIdHandler` (`GetClaimByIdQuery` -> `ClaimDetailDto`)
-3. `GetExposureAnalyticsHandler` (`GetExposureAnalyticsQuery` -> `ExposureAnalyticsDto`)
+1. `GetClaimsListHandler` (`GetClaimsListRequest` -> claim summaries)
+2. `GetClaimByIdHandler` (`GetClaimByIdRequest` -> `ClaimDetailResponse`)
+3. `GetExposureAnalyticsHandler` (`GetExposureAnalyticsRequest` -> `ExposureAnalyticsResponse`)

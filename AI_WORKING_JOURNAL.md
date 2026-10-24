@@ -11,35 +11,35 @@ I asked the AI to help decompose the Chubb APAC Fullstack Take-Home Assessment f
 
 ### What the AI Proposed
 1. **Service Boundaries**: Proposed a Modular Monolith vs. Microservices trade-off, recommending a single deployable solution with strict internal module separation for a 2–3 hour sprint.
-2. **Event-Driven Communication (REST vs. Kafka)**: Proposed synchronous REST for user commands/queries (where immediate validation and state confirmation are needed) and asynchronous Kafka events for liability exposure recalculation, audit logging, and real-time UI notifications.
-3. **Database**: Proposed SQLite with EF Core auto-seeding across all 6 APAC markets (`SG`, `HK`, `AU`, `MY`, `TH`, `ID`).
-4. **Dual-Persona Angular App**: Proposed a single Angular codebase with a top-bar Persona Switcher (`Claimant` vs. `Claims Officer` vs. `Claims Manager`) passing persona headers (`X-Demo-Role`, `X-Demo-User-Id`).
+2. **Event-Driven Communication (REST vs. Kafka)**: Proposed synchronous REST for user commands and queries, with Kafka publishing claim events and SignalR notifying the UI. Analytics reads SQLite directly.
+3. **Database**: Proposed SQLite with six supported APAC market currencies (`SG`, `HK`, `AU`, `MY`, `TH`, `ID`). Four sample claims are seeded across SG, HK, and AU.
+4. **Dual-Persona Angular App**: Proposed a single Angular codebase with a top-bar role switcher for `Claimant` and `Claims Officer`, passing demo headers (`X-Demo-Role`, `X-Demo-User-Id`).
 
 ### What I Challenged & Overrode
-- **Override 1 (Backend Architecture & Mediator Pattern)**: Instead of a generic service-layer monolith or adding a third-party commercial library like MediatR (which moved to a commercial license in recent versions), I directed the AI to structure the backend using **Clean Architecture** (`Domain`, `Application`, `Infrastructure`, `Api`/Workers) with a custom, lightweight **`IDispatcher`** interface and explicit Application-layer Handlers (`SubmitClaimHandler`, `GetExposureAnalyticsHandler`, etc.).
-  - *Reasoning*: Keeps the Application layer 100% free of external package bloat, enforces Single Responsibility Principle (one file/class per business use case), and makes unit testing handlers straightforward.
+- **Override 1 (Backend Architecture & Dispatcher)**: I chose separate `Domain`, `Application`, `Infrastructure`, and `Api` projects, with a lightweight `IDispatcher` and explicit handlers (`SubmitClaimHandler`, `GetExposureAnalyticsHandler`, etc.). The outbox worker runs in the API process.
+  - *Reasoning*: Each use case is easy to locate and test without a separate worker deployment for this POC.
 - **Challenge 2 (Multi-Currency Liability Exposure Across 6 APAC Markets)**: The brief highlights that Chubb APAC operates across 6 markets (`SG`, `HK`, `AU`, `MY`, `TH`, `ID`) and asks *"What does the system need to know about outstanding liability exposure?"*. A naive implementation stores a single static claim amount in a single currency.
   - *Decision Accepted*: We designed a multi-currency model where claims are recorded in their market's native currency (`SGD`, `HKD`, `AUD`, `MYR`, `THB`, `IDR`) and normalized to **USD** (base reporting currency) via an `IFxRateService`. Furthermore, we modeled a **Dynamic Reserve Lifecycle**:
     - `EstimatedLoss` (Claimant initial report) -> `AssessedReserve` (Officer adjustment during review) -> `SettledAmount` (Final payout).
     - Active liability exposure equals `AssessedReserve ?? EstimatedLoss` while open, and automatically drops to `0` when `Settled` (moving to Realized Payout) or `Rejected` (moving to Released Reserve).
 - **Challenge 3 (Dual-Write Risk between Database and Kafka)**: Publishing directly to Kafka inside a command handler risks dual-write inconsistency if the DB commit succeeds but Kafka fails (or vice versa).
-  - *Decision Accepted*: Implemented the **Transactional Outbox Pattern** (`OutboxMessages` persisted in the same EF Core transaction as `Claim` state changes) with a background `OutboxRelayWorker` that publishes to Kafka (with an automatic in-memory `Channel` + SignalR fallback so `dotnet run` works out-of-the-box without requiring Docker to be up).
+  - *Decision Accepted*: Implemented the **Transactional Outbox Pattern** (`OutboxMessages` persisted with `Claim` state changes) with a background `OutboxRelayWorker` that publishes to Kafka when available and sends SignalR notifications. Without Kafka, the worker still notifies the UI but marks the message processed, so it will not replay to Kafka later.
 
 ---
 
 ## Entry 2: Domain Aggregate & State Machine Invariants (`Chubb.Claims.Domain`)
 
 ### What I Asked the AI
-Generate the `Claim` aggregate root and child entities (`ClaimInformationRequest`, `ClaimNote`, `ClaimAuditEntry`, `OutboxMessage`) with rich domain behavior.
+Generate the `Claim` entity and related information requests, notes, audit entries, and outbox messages.
 
 ### What the AI Proposed
-Initial draft allowed `Settle` and `Reject` from any non-terminal state, and exposed public setters on child collections.
+The first draft needed clearer rules for when officers can settle or reject a claim.
 
 ### What I Challenged & Overrode
 - **Challenge (Strict State Transitions)**: In insurance operations, an unreviewed FNOL (`Submitted`) or a claim awaiting claimant documentation (`InfoRequested`) should not be settled directly without being in `UnderReview`.
-  - *Override*: Enforced strict guard clauses in `Claim.Settle()` and `Claim.Reject()` requiring `Status == ClaimStatus.UnderReview`, throwing a `DomainException` (mapped to HTTP 400 ProblemDetails) if violated.
+  - *Override*: Added guard clauses in `SettleClaimHandler` and `RejectClaimHandler` requiring `Status == ClaimStatus.UnderReview`. The `Claim` entity itself has public properties rather than transition methods.
 - **Challenge (Data Privacy Between Personas)**: Since both Claimants and Claims Staff use the same Angular application and query `GET /api/claims/{id}`, internal adjuster notes (`ClaimNote.IsInternalOnly = true`) must never leak to a Claimant.
-  - *Accepted & Verified*: Added role-aware projection in `GetClaimByIdHandler` and `ClaimMapper.ToDetailDto(includeInternalNotes: query.IsStaffRole)`, and wrote an automated xUnit test (`Dispatcher_EndToEndWithSqliteOutbox_PersistsOutboxEventsAndMasksInternalNotesForClaimant`) to prove internal notes are stripped when `IsStaffRole == false`.
+  - *Accepted & Verified*: Added role-aware projection in `GetClaimByIdHandler` and `ClaimMapper.ToDetailResponse(includeInternalNotes: query.IsStaffRole)`, with a test that checks internal notes are hidden when `IsStaffRole == false`. The role header is demo-only and is not production authorization.
 
 ---
 
@@ -49,19 +49,19 @@ Initial draft allowed `Settle` and `Reject` from any non-terminal state, and exp
 Implement `ClaimsDbContext` with SQLite and automatic extraction of `IDomainEvent` items into `OutboxMessages` inside `SaveChangesAsync`.
 
 ### What I Challenged & Fixed
-- **Challenge (EF Core Backing Field Change Tracking)**: When domain methods like `claim.RequestAdditionalInfo()` or `claim.UpdateAssessment()` append new entities to private `readonly List<T>` backing fields (`_informationRequests`, `_notes`, `_auditTrail`) on an already-tracked `Claim` aggregate, EF Core can sometimes misclassify new child entities with client-generated `Guid` keys as `Modified` instead of `Added`, causing `DbUpdateConcurrencyException`.
-  - *Fix Applied*: Explicitly inspected `ChangeTracker.Entries<Claim>()` inside `ClaimsDbContext.SaveChangesAsync` before base save to ensure newly appended child items not yet in the database are marked `EntityState.Added`.
+- **Challenge (EF Core Change Tracking)**: New information requests, notes, and audit entries are appended to public lists on an already-tracked claim. EF Core may treat a new child with a client-generated `Guid` as `Modified` instead of `Added`.
+  - *Fix Applied*: Inspected tracked claims in `ClaimsDbContext.SaveChangesAsync` and marked new child entities as `EntityState.Added` before saving.
 
 ---
 
-## Entry 4: Single Angular Codebase Serving Dual Personas (`frontend/`)
+## Entry 4: Single Angular Codebase Serving Dual Personas
 
 ### What I Asked the AI
-Build the Angular 19 standalone application serving Claimants, Claims Officers, and Claims Managers from a single codebase with real-time SignalR updates.
+Build the Angular 19 application for a claimant and a claims officer, with SignalR updates.
 
 ### What I Challenged & Refined
 - **Challenge (Demonstrating Both Personas Fluidly in a 15-Minute Demo)**: Logging out and logging back in repeatedly during a live panel walkthrough wastes time and breaks flow.
-  - *Refinement*: Implemented a top-bar **Live Persona Switcher** pre-loaded with 7 realistic APAC personas (`Tan Wei Ming - SG Claimant`, `Chloe Chan - HK Claimant`, `Liam O'Connor - AU Claimant`, `Sarah Jenkins - SG/HK Officer`, `Rajesh Patel - AU/MY Officer`, `Narong Srisai - TH/ID Officer`, and `Victoria Lim - VP APAC Claims Manager`). Switching personas immediately updates the HTTP headers (`X-Demo-User-Id`, `X-Demo-Role`) and adapts the UI between the **Claimant Self-Service Portal**, **Claims Officer Triage & Assessment Workbench**, and **Executive APAC Liability Exposure Dashboard**.
+  - *Refinement*: Implemented a top-bar switcher for the two demo personas, Lim Hean Soon and Admin Officer. It changes demo request headers and switches between the claimant and officer views. The officer view shows workload and pending liability; there is no manager dashboard.
 
 ---
 
